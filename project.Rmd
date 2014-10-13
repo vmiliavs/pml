@@ -1,0 +1,78 @@
+---
+output: html_document
+---
+# Practical Machine Learning - Weight Lifting Exercise Qualitative Activity Recognition
+
+### Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+### Getting and cleaning the data
+The training data for this project are available here:  
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv  
+The test data are available here:   
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv  
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.  
+After downloading the data, we read it into R dataframe taking care of NA strings.  
+We remove all the valiables with at least one NA value and also remove irrelevant variables - X, user_name, raw_timestram_part_1, raw_timestram_part_2, cvtd_timestamp, new_window and num_window.  
+```{r echo=TRUE}
+training <- read.csv("pml-training.csv",na.strings = c("NA","","#DIV/0!"))
+training<-training[,colSums(is.na(training)) == 0]
+training <- training[,-1:-7]
+```
+
+### Building the model
+We split the training data set into the actual training set and validation set.
+```{r echo=TRUE}
+library(randomForest)
+library(caret)
+set.seed(1)
+inTrain <- createDataPartition(training$classe, p = 0.6)[[1]]
+train <- training[inTrain,]
+valid <- training[-inTrain,]
+```
+We build the Random Forest model based on the actual training set and then cross-validate it on the validation set.  
+We restrict the number of trees to grow to 100 in order to reduce the computation time.  
+```{r echo=TRUE}
+fit <- randomForest(classe ~ ., data=train, ntree=100)
+pred <- predict(fit, valid)
+confusionMatrix(pred, valid$classe)
+```
+We can see that the estimated accuracy is above 99%.  
+
+### Performing cross-validation and out of sample error estimation
+We repeat the above procedure two more times to make sure the accuracy remains at the same level.  
+```{r echo=TRUE}
+set.seed(2)
+inTrain <- createDataPartition(training$classe, p = 0.6)[[1]]
+train <- training[inTrain,]
+valid <- training[-inTrain,]
+fit <- randomForest(classe ~ ., data=train, ntree=100)
+pred <- predict(fit, valid)
+confusionMatrix(pred, valid$classe)
+set.seed(3)
+inTrain <- createDataPartition(training$classe, p = 0.6)[[1]]
+train <- training[inTrain,]
+valid <- training[-inTrain,]
+fit <- randomForest(classe ~ ., data=train, ntree=100)
+pred <- predict(fit, valid)
+confusionMatrix(pred, valid$classe)
+```
+As we can see the accuracy is still above 99%, which is very good, and we choose this as a final model.  
+The expected out of sample error is less than 1% as the accuracy is above 99%.  
+
+### Predicting the 20 test cases
+We load the test dataset and predict the 20 test cases.  
+```{r}
+testing <- read.csv("pml-testing.csv",na.strings = c("NA",""))
+answer <- predict(fit, testing)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+  }
+pml_write_files(answer)
+```
+After submitting the results, it appears that the model predicted correctly all 20 test cases.  
+
